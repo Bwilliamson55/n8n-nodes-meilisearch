@@ -32,10 +32,14 @@ This node supports all major Meilisearch API operations organized by resource ty
 
 ### Documents
 - **Add or Replace Documents** - Add new documents or replace existing ones in an index
+  - Optional: Wait for task completion with configurable polling
+  - Optional: Primary key field mapping for flexible document structures
 - **Add or Update Documents** - Add new documents or update existing ones (partial updates)
+  - Optional: Wait for task completion with configurable polling
+  - Optional: Primary key field mapping for flexible document structures
 - **Delete Batch of Documents** - Delete multiple documents by their UIDs
 - **Delete All Documents** - Remove all documents from an index
-- **Get Documents** - Retrieve multiple documents with pagination support
+- **Get Documents** - Retrieve multiple documents with pagination and filtering support
 - **Get One Document** - Retrieve a single document by its UID
 
 ### General
@@ -69,6 +73,7 @@ This node supports all major Meilisearch API operations organized by resource ty
 ### Tasks
 - **Get All Tasks** - List all tasks with filtering options (by status, type, index, date, etc.)
 - **Get a Single Task** - Retrieve details of a specific task by UID
+- **Wait for Task** - Poll a task until completion (succeeded, failed, or canceled) with exponential backoff
 - **Cancel Tasks** - Cancel enqueued or processing tasks
 - **Delete Tasks** - Delete finished tasks (succeeded, failed, or canceled)
 
@@ -94,9 +99,10 @@ The credentials are tested against the `/version` endpoint. You can save your cr
 
 ## Compatibility
 
-- **n8n**: Compatible with n8n version 1.6.0 and above
+- **n8n**: Compatible with n8n version 2.1.0 and above (tested with 2.1.4)
 - **Meilisearch**: Compatible with Meilisearch v1.0.0 and above
 - **Node.js**: Requires Node.js 16.x or higher
+- **TypeScript**: Built with TypeScript 5.3.3
 
 *Note: Compatibility is subject to change with future updates.*
 
@@ -114,16 +120,23 @@ The credentials are tested against the `/version` endpoint. You can save your cr
 ### Tips
 
 - **Index UID Fields**: When your API key has proper permissions, index UID fields will show as dropdowns with available indexes
-- **JSON Input**: For document operations, you can use n8n expressions like `{{ JSON.stringify($json) }}` or `{{ JSON.stringify($jmespath($input.all(), "[].json")) }}`
-- **Task Management**: Many operations return a task UID. Use the Tasks resource to check task status
+- **JSON Input**: For document operations, you can use n8n expressions:
+  - `{{ $json }}` - For a single object (recommended)
+  - `{{ JSON.stringify($json) }}` - For stringified JSON
+  - `{{ JSON.stringify($input.all().map(j => j.json)) }}` - For multiple items
+- **Primary Key Field Mapping**: If your documents use a different field name than the index's primary key, specify it in the "Primary Key Field" option. The node will automatically map it to the correct field name.
+- **Wait for Completion**: Enable "Wait for Completion" on document operations to automatically poll until the task completes. Choose between fixed interval or exponential backoff polling.
+- **Task Management**: Many operations return a task UID. Use the "Wait for Task" operation or enable "Wait for Completion" on document operations to automatically wait for tasks to finish.
 - **Field Hints**: Most fields include helpful hints and examples in their descriptions
 
 ### Common Patterns
 
 #### Adding Documents
-1. Use "Documents" → "Add or Replace Documents"
+1. Use "Documents" → "Add or Replace Documents" or "Add or Update Documents"
 2. Select your index from the dropdown
-3. Provide documents as JSON array in the "Documents JSON" field
+3. Provide documents using `{{ $json }}` for a single object or `{{ JSON.stringify($input.all().map(j => j.json)) }}` for multiple items
+4. (Optional) Specify "Primary Key Field" if your documents use a different field name than the index's primary key
+5. (Optional) Enable "Wait for Completion" to automatically wait for the task to finish
 
 #### Searching
 1. Use "Search" → "Search Index" or "Indexes" → "Search Index"
@@ -132,7 +145,12 @@ The credentials are tested against the `/version` endpoint. You can save your cr
 4. Configure additional fields like filters, facets, pagination, etc.
 
 #### Waiting for Task Completion
-Currently, you need to manually poll tasks. See the [Planning Document](./PLANNING.md) for upcoming improvements to automate this process.
+1. **Automatic (Recommended)**: Enable "Wait for Completion" on document operations (Add/Replace/Update Documents)
+   - Configure polling interval and timeout
+   - Choose between fixed interval or exponential backoff
+2. **Manual**: Use "Tasks" → "Wait for Task" operation
+   - Provide the task UID from a previous operation
+   - Configure polling settings
 
 ## Updating
 
@@ -234,8 +252,21 @@ fi
 
 ## Version History
 
-### 0.1.2 (Current)
-- Current stable version
+### 0.1.3 (Current)
+- **Wait for Task Completion**: Added automatic task polling for document operations
+  - Configurable polling intervals with exponential backoff option
+  - Fixed interval or exponential backoff modes
+  - Configurable timeout and max polling interval
+- **Wait for Task Operation**: New standalone operation to poll any task until completion
+- **Primary Key Field Mapping**: Automatic field mapping for documents with different primary key field names
+  - Validates that specified field exists in all documents
+  - Automatically transforms documents to match index's primary key field
+- **Enhanced JSON Input**: Improved support for object inputs (e.g., `{{ $json }}`)
+- **Better Error Messages**: More detailed JSON validation errors with position information
+- **Updated Dependencies**: Upgraded to n8n-workflow 2.2.1, TypeScript 5.3.3, and other dependencies
+
+### 0.1.2
+- Previous stable version
 
 ### 0.1.1 - QOL Updates
 - Improved JSON validation for document operations with better error messages
@@ -252,7 +283,6 @@ fi
 ### Known Limitations & Planned Features
 - **Multi-search**: Not yet implemented (planned)
 - **Index Settings Sub-routes**: Currently supports full settings object only (sub-routes planned)
-- **Task Polling**: Manual task checking required (automated polling planned)
 - See [PLANNING.md](./PLANNING.md) for detailed roadmap
 
 ## Contributing

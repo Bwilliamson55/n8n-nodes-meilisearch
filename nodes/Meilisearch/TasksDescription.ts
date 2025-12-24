@@ -368,6 +368,19 @@ export const waitForTaskFields: INodeProperties[] = [
 		},
 	},
 	{
+		displayName: 'Use Exponential Backoff',
+		name: 'useExponentialBackoff',
+		type: 'boolean',
+		default: true,
+		description: 'If enabled, the polling interval will gradually increase to reduce API calls. If disabled, uses a fixed polling interval.',
+		displayOptions: {
+			show: {
+				resource: ['tasks'],
+				operation: ['waitForTask'],
+			},
+		},
+	},
+	{
 		displayName: 'Polling Interval (ms)',
 		name: 'pollingInterval',
 		type: 'number',
@@ -376,11 +389,48 @@ export const waitForTaskFields: INodeProperties[] = [
 			maxValue: 10000,
 		},
 		default: 500,
-		description: 'Initial interval between polling requests in milliseconds. Uses exponential backoff.',
+		description: 'Fixed interval between polling requests in milliseconds (used when exponential backoff is disabled)',
 		displayOptions: {
 			show: {
 				resource: ['tasks'],
 				operation: ['waitForTask'],
+				useExponentialBackoff: [false],
+			},
+		},
+	},
+	{
+		displayName: 'Initial Polling Interval (ms)',
+		name: 'pollingInterval',
+		type: 'number',
+		typeOptions: {
+			minValue: 100,
+			maxValue: 10000,
+		},
+		default: 500,
+		description: 'Starting interval between polling requests in milliseconds. The interval increases by 1.5x every 5 attempts',
+		displayOptions: {
+			show: {
+				resource: ['tasks'],
+				operation: ['waitForTask'],
+				useExponentialBackoff: [true],
+			},
+		},
+	},
+	{
+		displayName: 'Max Polling Interval (ms)',
+		name: 'maxPollingInterval',
+		type: 'number',
+		typeOptions: {
+			minValue: 1000,
+			maxValue: 30000,
+		},
+		default: 5000,
+		description: 'Maximum interval between polling requests. Exponential backoff will not exceed this value',
+		displayOptions: {
+			show: {
+				resource: ['tasks'],
+				operation: ['waitForTask'],
+				useExponentialBackoff: [true],
 			},
 		},
 	},
@@ -394,23 +444,6 @@ export const waitForTaskFields: INodeProperties[] = [
 		},
 		default: 300,
 		description: 'Maximum time to wait for task completion in seconds (default: 5 minutes)',
-		displayOptions: {
-			show: {
-				resource: ['tasks'],
-				operation: ['waitForTask'],
-			},
-		},
-	},
-	{
-		displayName: 'Max Polling Interval (ms)',
-		name: 'maxPollingInterval',
-		type: 'number',
-		typeOptions: {
-			minValue: 1000,
-			maxValue: 30000,
-		},
-		default: 5000,
-		description: 'Maximum interval between polling requests when using exponential backoff',
 		displayOptions: {
 			show: {
 				resource: ['tasks'],
