@@ -417,7 +417,7 @@ export const documentsFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments'],
+				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
 			},
 		},
 	},
@@ -430,7 +430,7 @@ export const documentsFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments'],
+				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
 				waitForCompletion: [true],
 			},
 		},
@@ -448,7 +448,7 @@ export const documentsFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments'],
+				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
 				waitForCompletion: [true],
 				useExponentialBackoff: [false],
 			},
@@ -467,7 +467,7 @@ export const documentsFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments'],
+				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
 				waitForCompletion: [true],
 				useExponentialBackoff: [true],
 			},
@@ -486,7 +486,7 @@ export const documentsFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments'],
+				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
 				waitForCompletion: [true],
 				useExponentialBackoff: [true],
 			},
@@ -505,7 +505,7 @@ export const documentsFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments'],
+				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
 				waitForCompletion: [true],
 			},
 		},

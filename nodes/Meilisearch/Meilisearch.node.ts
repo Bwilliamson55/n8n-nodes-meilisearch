@@ -7,7 +7,7 @@ import type {
 	INodeTypeDescription,
 } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
-import { generalOperations } from './GeneralDescription';
+import { generalFields, generalOperations } from './GeneralDescription';
 import {
 	tasksOperations,
 	getAllTasksFields,
@@ -26,6 +26,87 @@ import {
 } from './KeysDescription';
 import { documentsAdditionalFields, documentsFields, documentsOperations } from './DocumentsDescription';
 import { settingsFields, settingsOperations } from './SettingsDescription';
+import { MeilisearchApi } from '../../credentials/MeilisearchApi.credentials';
+
+// Helper function to wait for task completion
+async function waitForTaskCompletion(
+	context: IExecuteFunctions,
+	taskUid: number,
+	itemIndex: number,
+	credentials: any,
+): Promise<any> {
+	const useExponentialBackoff = context.getNodeParameter('useExponentialBackoff', itemIndex, true) as boolean;
+	const pollingInterval = (context.getNodeParameter('pollingInterval', itemIndex) as number) || 500;
+	const timeoutSeconds = (context.getNodeParameter('timeout', itemIndex) as number) || 300;
+	const maxPollingInterval = useExponentialBackoff 
+		? ((context.getNodeParameter('maxPollingInterval', itemIndex) as number) || 5000)
+		: pollingInterval;
+
+	const credentialType = new MeilisearchApi();
+	const startTime = Date.now();
+	const timeoutMs = timeoutSeconds * 1000;
+	let attemptCount = 0;
+
+	while (true) {
+		// Check timeout
+		if (Date.now() - startTime > timeoutMs) {
+			throw new NodeOperationError(
+				context.getNode(),
+				`Task ${taskUid} did not complete within ${timeoutSeconds} seconds`,
+			);
+		}
+
+		// Poll task status
+		const taskAuthOptions = await credentialType.authenticate(credentials, {
+			method: 'GET',
+			url: `/tasks/${taskUid}`,
+		});
+		const taskResponse = await context.helpers.httpRequest(taskAuthOptions);
+
+		const task = taskResponse as {
+			uid: number;
+			status: string;
+			type: string;
+			error?: {
+				message: string;
+				code: string;
+				type: string;
+			};
+			[index: string]: any;
+		};
+
+		// Check if task is complete
+		if (task.status === 'succeeded' || task.status === 'failed' || task.status === 'canceled') {
+			return task;
+		}
+
+		// Calculate wait time based on backoff setting
+		let waitTime: number;
+		if (useExponentialBackoff) {
+			// Exponential backoff: start with pollingInterval, increase by 1.5x every 5 attempts (max 3x multiplier)
+			// But never exceed maxPollingInterval
+			attemptCount++;
+			const exponentialMultiplier = Math.pow(1.5, Math.min(attemptCount / 5, 3));
+			const calculatedInterval = pollingInterval * exponentialMultiplier;
+			waitTime = Math.min(calculatedInterval, maxPollingInterval);
+		} else {
+			// Fixed interval: use the same polling interval every time
+			waitTime = pollingInterval;
+		}
+
+		// Wait before next poll
+		await new Promise((resolve) => setTimeout(resolve, waitTime));
+	}
+}
+
+// Operations that return taskUid and support wait for completion
+const OPERATIONS_WITH_TASKUID = {
+	documents: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
+	indexes: ['createIndex', 'swapIndexes'],
+	settings: ['updateSettings', 'resetSettings'],
+	keys: ['createKey', 'updateKey', 'deleteKey'],
+	general: ['dumps'],
+};
 
 export class Meilisearch implements INodeType {
 	description: INodeTypeDescription = {
@@ -96,6 +177,7 @@ export class Meilisearch implements INodeType {
 				//indexes settings sub routes
 			},
 			...generalOperations,
+			...generalFields,
 			// Tasks
 			...tasksOperations,
 			...getAllTasksFields,
@@ -147,6 +229,7 @@ export class Meilisearch implements INodeType {
 		// Search through operation arrays to find the matching operation
 		const allOperations = [
 			...generalOperations,
+			...generalFields,
 			...tasksOperations,
 			...indexesOperations,
 			...searchOperations,
@@ -357,81 +440,20 @@ export class Meilisearch implements INodeType {
 				// Make the HTTP request with authenticated options
 				const response = await this.helpers.httpRequest(authenticatedOptions);
 
-				// Check if we should wait for task completion (for document operations)
+				// Check if we should wait for task completion
 				const waitForCompletion = this.getNodeParameter('waitForCompletion', i, false) as boolean;
-				if (waitForCompletion && resource === 'documents' && 
-					(operation === 'addOrReplaceDocuments' || operation === 'addOrUpdateDocuments')) {
-					
+				const operationsWithTaskUid = OPERATIONS_WITH_TASKUID[resource as keyof typeof OPERATIONS_WITH_TASKUID] || [];
+				
+				if (waitForCompletion && operationsWithTaskUid.includes(operation)) {
 					// Extract taskUid from response
 					const taskUid = (response as any)?.taskUid;
 					if (taskUid) {
-						// Wait for task completion
-						const useExponentialBackoff = this.getNodeParameter('useExponentialBackoff', i, true) as boolean;
-						const pollingInterval = (this.getNodeParameter('pollingInterval', i) as number) || 500;
-						const timeoutSeconds = (this.getNodeParameter('timeout', i) as number) || 300;
-						const maxPollingInterval = useExponentialBackoff 
-							? ((this.getNodeParameter('maxPollingInterval', i) as number) || 5000)
-							: pollingInterval; // Not used when backoff is disabled
-
-						const startTime = Date.now();
-						const timeoutMs = timeoutSeconds * 1000;
-						let attemptCount = 0;
-
-						while (true) {
-							// Check timeout
-							if (Date.now() - startTime > timeoutMs) {
-								throw new NodeOperationError(
-									this.getNode(),
-									`Task ${taskUid} did not complete within ${timeoutSeconds} seconds`,
-								);
-							}
-
-							// Poll task status
-							const taskAuthOptions = await credentialType.authenticate(credentials, {
-								method: 'GET',
-								url: `/tasks/${taskUid}`,
-							});
-							const taskResponse = await this.helpers.httpRequest(taskAuthOptions);
-
-							const task = taskResponse as {
-								uid: number;
-								status: string;
-								type: string;
-								error?: {
-									message: string;
-									code: string;
-									type: string;
-								};
-								[index: string]: any;
-							};
-
-							// Check if task is complete
-							if (task.status === 'succeeded' || task.status === 'failed' || task.status === 'canceled') {
-								// Return the task result instead of the initial response
-								returnData.push({
-									json: task,
-									pairedItem: { item: i },
-								});
-								break;
-							}
-
-							// Calculate wait time based on backoff setting
-							let waitTime: number;
-							if (useExponentialBackoff) {
-								// Exponential backoff: start with pollingInterval, increase by 1.5x every 5 attempts (max 3x multiplier)
-								// But never exceed maxPollingInterval
-								attemptCount++;
-								const exponentialMultiplier = Math.pow(1.5, Math.min(attemptCount / 5, 3));
-								const calculatedInterval = pollingInterval * exponentialMultiplier;
-								waitTime = Math.min(calculatedInterval, maxPollingInterval);
-							} else {
-								// Fixed interval: use the same polling interval every time
-								waitTime = pollingInterval;
-							}
-
-							// Wait before next poll
-							await new Promise((resolve) => setTimeout(resolve, waitTime));
-						}
+						// Wait for task completion using helper function
+						const task = await waitForTaskCompletion(this, taskUid, i, credentials);
+						returnData.push({
+							json: task,
+							pairedItem: { item: i },
+						});
 					} else {
 						// No taskUid in response, return original response
 						returnData.push({
@@ -474,74 +496,12 @@ async function executeWaitForTask(
 		for (let i = 0; i < items.length; i++) {
 			try {
 				const taskUid = context.getNodeParameter('uid', i) as number;
-				const useExponentialBackoff = context.getNodeParameter('useExponentialBackoff', i, true) as boolean;
-				const pollingInterval = (context.getNodeParameter('pollingInterval', i) as number) || 500;
-				const timeoutSeconds = (context.getNodeParameter('timeout', i) as number) || 300;
-				const maxPollingInterval = useExponentialBackoff
-					? ((context.getNodeParameter('maxPollingInterval', i) as number) || 5000)
-					: pollingInterval; // Not used when backoff is disabled
-
-				const startTime = Date.now();
-				const timeoutMs = timeoutSeconds * 1000;
-				let attemptCount = 0;
-
-				while (true) {
-					// Check timeout
-					if (Date.now() - startTime > timeoutMs) {
-						throw new NodeOperationError(
-							context.getNode(),
-							`Task ${taskUid} did not complete within ${timeoutSeconds} seconds`,
-						);
-					}
-
-					// Poll task status with authentication
-					const credentials = await context.getCredentials('meilisearchApi');
-					const MeilisearchApi = (await import('../../credentials/MeilisearchApi.credentials')).MeilisearchApi;
-					const credentialType = new MeilisearchApi();
-					const authenticatedOptions = await credentialType.authenticate(credentials, {
-						method: 'GET',
-						url: `/tasks/${taskUid}`,
-					});
-					const response = await context.helpers.httpRequest(authenticatedOptions);
-
-					const task = response as {
-						uid: number;
-						status: string;
-						type: string;
-						error?: {
-							message: string;
-							code: string;
-							type: string;
-						};
-						[index: string]: any;
-					};
-
-					// Check if task is complete
-					if (task.status === 'succeeded' || task.status === 'failed' || task.status === 'canceled') {
-						returnData.push({
-							json: task,
-							pairedItem: { item: i },
-						});
-						break;
-					}
-
-					// Calculate wait time based on backoff setting
-					let waitTime: number;
-					if (useExponentialBackoff) {
-						// Exponential backoff: start with pollingInterval, increase by 1.5x every 5 attempts (max 3x multiplier)
-						// But never exceed maxPollingInterval
-						attemptCount++;
-						const exponentialMultiplier = Math.pow(1.5, Math.min(attemptCount / 5, 3));
-						const calculatedInterval = pollingInterval * exponentialMultiplier;
-						waitTime = Math.min(calculatedInterval, maxPollingInterval);
-					} else {
-						// Fixed interval: use the same polling interval every time
-						waitTime = pollingInterval;
-					}
-
-					// Wait before next poll
-					await new Promise((resolve) => setTimeout(resolve, waitTime));
-				}
+				const credentials = await context.getCredentials('meilisearchApi');
+				const task = await waitForTaskCompletion(context, taskUid, i, credentials);
+				returnData.push({
+					json: task,
+					pairedItem: { item: i },
+				});
 			} catch (error) {
 				if (context.continueOnFail()) {
 					returnData.push({
