@@ -66,6 +66,12 @@ export const tasksOperations: INodeProperties[] = [
 					},
 				},
 			},
+			{
+				name: 'Wait for Task',
+				value: 'waitForTask',
+				action: 'Wait for task completion',
+				description: 'Poll a task until it completes (succeeded, failed, or canceled). Uses exponential backoff to reduce API calls.',
+			},
 		],
 	},
 ];
@@ -340,5 +346,76 @@ export const cancelTasksFields: INodeProperties[] = [
 		options: [
 			...commonOptions,
 		],
+	},
+];
+
+export const waitForTaskFields: INodeProperties[] = [
+	{
+		displayName: 'Task UID',
+		name: 'uid',
+		type: 'number',
+		required: true,
+		typeOptions: {
+			minValue: 1,
+		},
+		default: null,
+		description: 'The UID of the task to wait for',
+		displayOptions: {
+			show: {
+				resource: ['tasks'],
+				operation: ['waitForTask'],
+			},
+		},
+	},
+	{
+		displayName: 'Polling Interval (ms)',
+		name: 'pollingInterval',
+		type: 'number',
+		typeOptions: {
+			minValue: 100,
+			maxValue: 10000,
+		},
+		default: 500,
+		description: 'Initial interval between polling requests in milliseconds. Uses exponential backoff.',
+		displayOptions: {
+			show: {
+				resource: ['tasks'],
+				operation: ['waitForTask'],
+			},
+		},
+	},
+	{
+		displayName: 'Timeout (seconds)',
+		name: 'timeout',
+		type: 'number',
+		typeOptions: {
+			minValue: 1,
+			maxValue: 3600,
+		},
+		default: 300,
+		description: 'Maximum time to wait for task completion in seconds (default: 5 minutes)',
+		displayOptions: {
+			show: {
+				resource: ['tasks'],
+				operation: ['waitForTask'],
+			},
+		},
+	},
+	{
+		displayName: 'Max Polling Interval (ms)',
+		name: 'maxPollingInterval',
+		type: 'number',
+		typeOptions: {
+			minValue: 1000,
+			maxValue: 30000,
+		},
+		default: 5000,
+		description: 'Maximum interval between polling requests when using exponential backoff',
+		displayOptions: {
+			show: {
+				resource: ['tasks'],
+				operation: ['waitForTask'],
+			},
+		},
 	},
 ];
