@@ -378,7 +378,7 @@ export const searchFields: INodeProperties[] = [
 				routing: {
 					request: {
 						body: {
-							attributesToHighlight: '={{$value.replaceAll(" ", "").split(",")}}',
+							sort: '={{$value.replaceAll(" ", "").split(",")}}',
 						},
 					},
 				},
