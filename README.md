@@ -64,6 +64,7 @@ This node supports all major Meilisearch API operations organized by resource ty
 
 ### Search
 - **Search Index** - Perform advanced searches with filtering, faceting, highlighting, and more
+- **Multi-Search** - Perform multiple searches across different indexes in a single request
 
 ### Settings
 - **Get Index Settings** - Retrieve all settings for an index
@@ -139,10 +140,14 @@ The credentials are tested against the `/version` endpoint. You can save your cr
 5. (Optional) Enable "Wait for Completion" to automatically wait for the task to finish
 
 #### Searching
-1. Use "Search" → "Search Index" or "Indexes" → "Search Index"
-2. Select your index
-3. Enter your search query
-4. Configure additional fields like filters, facets, pagination, etc.
+1. **Single Index Search**: Use "Search" → "Search Index" or "Indexes" → "Search Index"
+   - Select your index
+   - Enter your search query
+   - Configure additional fields like filters, facets, pagination, etc.
+2. **Multi-Index Search**: Use "Search" → "Multi-Search"
+   - Add multiple queries, each targeting a different index
+   - Configure search parameters per query (filters, facets, pagination, etc.)
+   - Get results from multiple indexes in a single request
 
 #### Waiting for Task Completion
 1. **Automatic (Recommended)**: Enable "Wait for Completion" on document operations (Add/Replace/Update Documents)
@@ -252,7 +257,14 @@ fi
 
 ## Version History
 
-### 0.1.3 (Current)
+### 0.1.4 (Current)
+- **Multi-Search Support**: Added "Multi-Search" operation to search across multiple indexes in a single request
+  - Full support for all search parameters per query (filters, facets, pagination, etc.)
+  - Configure multiple queries with different indexes and parameters
+- **Fixed 415 Errors**: Resolved Content-Type header issues in search and multi-search operations
+- **Enhanced Body Parameter Handling**: Improved request body construction for POST operations
+
+### 0.1.3
 - **Wait for Task Completion**: Added automatic task polling for document operations
   - Configurable polling intervals with exponential backoff option
   - Fixed interval or exponential backoff modes
@@ -281,8 +293,7 @@ fi
 - Full settings management (as entire settings object)
 
 ### Known Limitations & Planned Features
-- **Multi-search**: Not yet implemented (planned)
-- **Index Settings Sub-routes**: Currently supports full settings object only (sub-routes planned)
+- **Index Settings Sub-routes**: Currently supports full settings object only (sub-routes planned for future version)
 - See [PLANNING.md](./PLANNING.md) for detailed roadmap
 
 ## Contributing

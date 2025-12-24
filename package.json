@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-meilisearch",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A community node to interact with the Meilisearch REST API",
   "keywords": [
     "n8n-community-node-package",

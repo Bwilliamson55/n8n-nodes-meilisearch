@@ -39,11 +39,11 @@
 ## Missing Capabilities
 
 ### Multi-Search
-- **Status**: Not implemented
+- **Status**: ✅ Implemented
 - **API Endpoint**: POST /multi-search
 - **Description**: Perform multiple searches in a single request
 - **Use Case**: Search across multiple indexes simultaneously
-- **Priority**: Medium
+- **Priority**: ✅ Completed
 
 ### Index Settings Sub-routes
 - **Status**: Not implemented (currently supports full settings object only)
@@ -77,13 +77,14 @@
 2. ✅ Created reusable `waitForTaskCompletion` helper function
 3. ✅ Made wait-for-completion logic generic and extensible
 
-### 🔄 Next Steps
-
-### Medium Priority
-1. Implement Multi-Search
+### ✅ Completed (v0.1.4)
+1. ✅ Implemented Multi-Search
    - API Endpoint: POST /multi-search
    - Allows searching across multiple indexes in a single request
-   - Need to research exact API structure
+   - Full support for all search parameters per query
+   - Fixed Content-Type header issues
+
+### 🔄 Next Steps
 
 ### Low Priority
 2. Implement Index Settings Sub-routes

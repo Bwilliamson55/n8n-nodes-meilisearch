@@ -16,7 +16,7 @@ import {
 	getTaskFields,
 	waitForTaskFields,
 } from './TasksDescription';
-import { indexesFields, indexesOperations, searchFields, searchOperations, swapIndexesFields } from './IndexesDescription';
+import { indexesFields, indexesOperations, multiSearchFields, searchFields, searchOperations, swapIndexesFields } from './IndexesDescription';
 import {
 	createKeyFields,
 	getKeyFields,
@@ -172,9 +172,6 @@ export class Meilisearch implements INodeType {
 					},
 				],
 				default: 'general',
-				//TODO
-				//multi-search
-				//indexes settings sub routes
 			},
 			...generalOperations,
 			...generalFields,
@@ -191,6 +188,7 @@ export class Meilisearch implements INodeType {
 			...swapIndexesFields,
 			...indexesFields,
 			...searchFields,
+			...multiSearchFields,
 			// Keys
 			...keysOperations,
 			...getKeysFields,
@@ -324,12 +322,13 @@ export class Meilisearch implements INodeType {
 					}
 				}
 
-				// Build query string - collect from additionalFields
-				// Query params are set via field routing configs
+				// Build query string and body - collect from additionalFields
+				// Query params and body are set via field routing configs
 				const qs: Record<string, any> = {};
+				let body: Record<string, any> = {};
 				const additionalFields = this.getNodeParameter('additionalFields', i, {}) as Record<string, any>;
 				
-				// Collect query parameters from additionalFields
+				// Collect query parameters and body parameters from additionalFields
 				// We'll search through all field arrays to find routing configs
 				const allFields = [
 					...getAllTasksFields,
@@ -360,6 +359,8 @@ export class Meilisearch implements INodeType {
 						
 						if (fieldProp?.options) {
 							const option = (fieldProp.options as any[]).find((opt: any) => opt.name === key);
+							
+							// Handle query string parameters
 							if (option?.routing?.request?.qs) {
 								// Extract the query parameter name from routing config
 								Object.keys(option.routing.request.qs).forEach((qsKey) => {
@@ -383,22 +384,59 @@ export class Meilisearch implements INodeType {
 									}
 								});
 							}
+							
+							// Handle body parameters
+							if (option?.routing?.request?.body) {
+								Object.keys(option.routing.request.body).forEach((bodyKey) => {
+									const bodyValue = option.routing.request.body[bodyKey];
+									if (typeof bodyValue === 'string') {
+										// Handle $value replacement
+										if (bodyValue.includes('$value')) {
+											body[bodyKey] = bodyValue.replace(/\$value/g, String(value));
+										} else if (bodyValue.includes('replaceAll')) {
+											// Handle expressions like '={{$value.replaceAll(" ", "").split(",")}}'
+											if (bodyValue.includes('.split(",")')) {
+												body[bodyKey] = String(value).replace(/\s/g, '').split(',');
+											} else {
+												body[bodyKey] = String(value).replace(/\s/g, '');
+											}
+										} else {
+											body[bodyKey] = value;
+										}
+									} else {
+										body[bodyKey] = value;
+									}
+								});
+							}
 						}
 					}
 				}
 				
-				// Build body - will be handled by preSend actions
-				let body: any = requestConfig.body;
+				// Merge with requestConfig.body if it exists
+				if (requestConfig.body) {
+					body = { ...requestConfig.body, ...body };
+				}
 
 				// Execute preSend actions if they exist
 				let requestOptions: any = {
 					method: requestConfig.method || 'GET',
 					url: url,
-					qs: qs,
+					qs: Object.keys(qs).length > 0 ? qs : undefined,
 				};
 
-				if (body !== undefined) {
-					requestOptions.body = body;
+				// Only add body if it has content or if requestConfig explicitly sets it
+				if (Object.keys(body).length > 0 || requestConfig.body !== undefined) {
+					// If body has content, stringify it for JSON requests
+					if (Object.keys(body).length > 0) {
+						requestOptions.body = JSON.stringify(body);
+						// Set Content-Type header, merging with any existing headers
+						requestOptions.headers = {
+							...requestOptions.headers,
+							'Content-Type': 'application/json',
+						};
+					} else if (requestConfig.body !== undefined) {
+						requestOptions.body = requestConfig.body;
+					}
 				}
 
 				// Execute preSend actions
@@ -427,6 +465,14 @@ export class Meilisearch implements INodeType {
 					
 					for (const preSendAction of routing.send.preSend) {
 						requestOptions = await preSendAction.call(singleExecuteContext, requestOptions);
+					}
+					
+					// Ensure Content-Type header is set if body exists (preSend might have set it)
+					if (requestOptions.body && typeof requestOptions.body === 'string') {
+						requestOptions.headers = {
+							...requestOptions.headers,
+							'Content-Type': 'application/json',
+						};
 					}
 				}
 
