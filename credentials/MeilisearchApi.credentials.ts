@@ -11,7 +11,7 @@ export class MeilisearchApi implements ICredentialType {
 
 	displayName = 'Meilisearch API';
 
-	documentationUrl = 'https://docs.meilisearch.com/reference/api/overview.html#authorization';
+	documentationUrl = 'https://www.meilisearch.com/docs/reference/api/overview';
 
 	properties: INodeProperties[] = [
 		{

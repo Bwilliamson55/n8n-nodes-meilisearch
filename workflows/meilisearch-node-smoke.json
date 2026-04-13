@@ -1,0 +1,180 @@
+{
+  "name": "Meilisearch node smoke",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-manual-trigger",
+      "name": "When clicking ‘Execute workflow’",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "resource": "general",
+        "operation": "health"
+      },
+      "id": "b2c3d4e5-health",
+      "name": "Meilisearch Health",
+      "type": "n8n-nodes-meilisearch.meilisearch",
+      "typeVersion": 1,
+      "position": [240, 0],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "resource": "indexes",
+        "operation": "listIndexes"
+      },
+      "id": "c3d4e5f6-list-indexes",
+      "name": "List indexes",
+      "type": "n8n-nodes-meilisearch.meilisearch",
+      "typeVersion": 1,
+      "position": [480, 0],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "resource": "documents",
+        "operation": "getMany",
+        "uid": "n8n_meili_smoke",
+        "additionalFields": {
+          "limit": 2,
+          "fields": "id"
+        }
+      },
+      "id": "d4e5f6a7-get-docs",
+      "name": "Get documents (fields)",
+      "type": "n8n-nodes-meilisearch.meilisearch",
+      "typeVersion": 1,
+      "position": [720, 0],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "resource": "documents",
+        "operation": "getDocument",
+        "uid": "n8n_meili_smoke",
+        "documentId": "1",
+        "fields": "id"
+      },
+      "id": "e5f6a7b8-get-one",
+      "name": "Get one document (top-level fields)",
+      "type": "n8n-nodes-meilisearch.meilisearch",
+      "typeVersion": 1,
+      "position": [960, 0],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "resource": "search",
+        "operation": "search",
+        "uid": "n8n_meili_smoke",
+        "additionalFields": {
+          "query": "",
+          "limit": 1,
+          "attributesToRetrieve": "id"
+        }
+      },
+      "id": "f6a7b8c9-search",
+      "name": "Search (body templates)",
+      "type": "n8n-nodes-meilisearch.meilisearch",
+      "typeVersion": 1,
+      "position": [1200, 0],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "resource": "tasks",
+        "operation": "getAllTasks",
+        "additionalFields": {
+          "limit": 5,
+          "beforeEnqueuedAt": "2099-12-31T23:59:59.000Z"
+        }
+      },
+      "id": "a7b8c9d0-tasks",
+      "name": "List tasks (date qs)",
+      "type": "n8n-nodes-meilisearch.meilisearch",
+      "typeVersion": 1,
+      "position": [1440, 0],
+      "credentials": {}
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Meilisearch Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meilisearch Health": {
+      "main": [
+        [
+          {
+            "node": "List indexes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List indexes": {
+      "main": [
+        [
+          {
+            "node": "Get documents (fields)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get documents (fields)": {
+      "main": [
+        [
+          {
+            "node": "Get one document (top-level fields)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get one document (top-level fields)": {
+      "main": [
+        [
+          {
+            "node": "Search (body templates)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search (body templates)": {
+      "main": [
+        [
+          {
+            "node": "List tasks (date qs)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

@@ -1,6 +1,6 @@
-import type {
-	INodeProperties
-} from 'n8n-workflow';
+import type { INodeProperties } from 'n8n-workflow';
+import { applyOptionalSearchQueryFields } from './searchQueryApply';
+import { buildWaitForMeiliTaskFields } from './waitPollFields';
 
 export const searchOperations: INodeProperties[] = [
 	{
@@ -47,49 +47,11 @@ export const searchOperations: INodeProperties[] = [
 								
 								// Build the multi-search request body
 								const multiSearchQueries = queriesArray.map((queryConfig) => {
-									const searchQuery: any = {
+									const searchQuery: Record<string, unknown> = {
 										indexUid: queryConfig.indexUid,
 										q: queryConfig.query || '',
 									};
-									
-									// Add optional search parameters if provided
-									if (queryConfig.offset !== undefined && queryConfig.offset !== null && queryConfig.offset !== '') {
-										searchQuery.offset = typeof queryConfig.offset === 'number' ? queryConfig.offset : parseInt(String(queryConfig.offset));
-									}
-									if (queryConfig.limit !== undefined && queryConfig.limit !== null && queryConfig.limit !== '') {
-										searchQuery.limit = typeof queryConfig.limit === 'number' ? queryConfig.limit : parseInt(String(queryConfig.limit));
-									}
-									if (queryConfig.hitsPerPage !== undefined && queryConfig.hitsPerPage !== null && queryConfig.hitsPerPage !== '') {
-										searchQuery.hitsPerPage = typeof queryConfig.hitsPerPage === 'number' ? queryConfig.hitsPerPage : parseInt(String(queryConfig.hitsPerPage));
-									}
-									if (queryConfig.page !== undefined && queryConfig.page !== null && queryConfig.page !== '') {
-										searchQuery.page = typeof queryConfig.page === 'number' ? queryConfig.page : parseInt(String(queryConfig.page));
-									}
-									if (queryConfig.filter) searchQuery.filter = queryConfig.filter;
-									if (queryConfig.facets) {
-										searchQuery.facets = String(queryConfig.facets).replace(/\s/g, '').split(',');
-									}
-									if (queryConfig.attributesToRetrieve) {
-										searchQuery.attributesToRetrieve = String(queryConfig.attributesToRetrieve).replace(/\s/g, '').split(',');
-									}
-									if (queryConfig.attributesToCrop) {
-										searchQuery.attributesToCrop = String(queryConfig.attributesToCrop).replace(/\s/g, '').split(',');
-									}
-									if (queryConfig.cropLength !== undefined && queryConfig.cropLength !== null && queryConfig.cropLength !== '') {
-										searchQuery.cropLength = typeof queryConfig.cropLength === 'number' ? queryConfig.cropLength : parseInt(String(queryConfig.cropLength));
-									}
-									if (queryConfig.cropMarker) searchQuery.cropMarker = queryConfig.cropMarker;
-									if (queryConfig.attributesToHighlight) {
-										searchQuery.attributesToHighlight = String(queryConfig.attributesToHighlight).replace(/\s/g, '').split(',');
-									}
-									if (queryConfig.highlightPreTag) searchQuery.highlightPreTag = queryConfig.highlightPreTag;
-									if (queryConfig.highlightPostTag) searchQuery.highlightPostTag = queryConfig.highlightPostTag;
-									if (queryConfig.showMatchesPosition !== undefined) searchQuery.showMatchesPosition = queryConfig.showMatchesPosition;
-									if (queryConfig.sort) {
-										searchQuery.sort = String(queryConfig.sort).replace(/\s/g, '').split(',');
-									}
-									if (queryConfig.matchingStrategy) searchQuery.matchingStrategy = queryConfig.matchingStrategy;
-									
+									applyOptionalSearchQueryFields(searchQuery, queryConfig as Record<string, unknown>);
 									return searchQuery;
 								});
 								
@@ -147,6 +109,30 @@ export const indexesOperations: INodeProperties[] = [
 				},
 			},
 			{
+				name: 'Get Index',
+				value: 'getIndex',
+				action: 'Get one index by UID',
+				routing: {
+					request: {
+						method: 'GET',
+						url: '={{"/indexes/" + $parameter["uid"]}}',
+						qs: {}
+					},
+				},
+			},
+			{
+				name: 'Delete Index',
+				value: 'deleteIndex',
+				action: 'Delete one index',
+				routing: {
+					request: {
+						method: 'DELETE',
+						url: '={{"/indexes/" + $parameter["uid"]}}',
+						qs: {}
+					},
+				},
+			},
+			{
 				name: 'Search Index',
 				value: 'search',
 				action: 'Search index',
@@ -189,7 +175,7 @@ export const indexesOperations: INodeProperties[] = [
 				routing: {
 					request: {
 						method: 'POST',
-						url: 'indexes',
+						url: '/indexes',
 						qs: {},
 						body: {
 							"uid": '={{$parameter["uid"]}}',
@@ -238,9 +224,9 @@ export const searchFields: INodeProperties[] = [
 				description: 'Number of results to skip',
 				type: 'number',
 				typeOptions: {
-					minValue: 1,
+					minValue: 0,
 				},
-				default: 1,
+				default: 0,
 				routing: {
 					request: {
 						body: {
@@ -718,7 +704,7 @@ export const indexesFields: INodeProperties[] = [
 		displayOptions: {
 			show: {
 				resource: ['indexes', 'search'],
-				operation: ['createIndex', 'search', 'indexStats'],
+				operation: ['createIndex', 'search', 'indexStats', 'getIndex', 'deleteIndex'],
 			},
 		},
 		typeOptions: {
@@ -770,108 +756,10 @@ export const indexesFields: INodeProperties[] = [
 			},
 		},
 	},
-	{
-		displayName: 'Wait for Completion',
-		name: 'waitForCompletion',
-		type: 'boolean',
-		default: false,
-		description: 'Whether to wait for the task to complete before returning. If enabled, the node will poll the task status until it succeeds, fails, or is canceled.',
-		displayOptions: {
-			show: {
-				resource: ['indexes'],
-				operation: ['createIndex', 'swapIndexes'],
-			},
-		},
-	},
-	{
-		displayName: 'Use Exponential Backoff',
-		name: 'useExponentialBackoff',
-		type: 'boolean',
-		default: true,
-		description: 'If enabled, the polling interval will gradually increase to reduce API calls. If disabled, uses a fixed polling interval.',
-		displayOptions: {
-			show: {
-				resource: ['indexes'],
-				operation: ['createIndex', 'swapIndexes'],
-				waitForCompletion: [true],
-			},
-		},
-	},
-	{
-		displayName: 'Polling Interval (ms)',
-		name: 'pollingInterval',
-		type: 'number',
-		typeOptions: {
-			minValue: 100,
-			maxValue: 10000,
-		},
-		default: 500,
-		description: 'Fixed interval between polling requests in milliseconds (used when exponential backoff is disabled)',
-		displayOptions: {
-			show: {
-				resource: ['indexes'],
-				operation: ['createIndex', 'swapIndexes'],
-				waitForCompletion: [true],
-				useExponentialBackoff: [false],
-			},
-		},
-	},
-	{
-		displayName: 'Initial Polling Interval (ms)',
-		name: 'pollingInterval',
-		type: 'number',
-		typeOptions: {
-			minValue: 100,
-			maxValue: 10000,
-		},
-		default: 500,
-		description: 'Starting interval between polling requests in milliseconds. The interval increases by 1.5x every 5 attempts',
-		displayOptions: {
-			show: {
-				resource: ['indexes'],
-				operation: ['createIndex', 'swapIndexes'],
-				waitForCompletion: [true],
-				useExponentialBackoff: [true],
-			},
-		},
-	},
-	{
-		displayName: 'Max Polling Interval (ms)',
-		name: 'maxPollingInterval',
-		type: 'number',
-		typeOptions: {
-			minValue: 1000,
-			maxValue: 30000,
-		},
-		default: 5000,
-		description: 'Maximum interval between polling requests. Exponential backoff will not exceed this value',
-		displayOptions: {
-			show: {
-				resource: ['indexes'],
-				operation: ['createIndex', 'swapIndexes'],
-				waitForCompletion: [true],
-				useExponentialBackoff: [true],
-			},
-		},
-	},
-	{
-		displayName: 'Timeout (seconds)',
-		name: 'timeout',
-		type: 'number',
-		typeOptions: {
-			minValue: 1,
-			maxValue: 3600,
-		},
-		default: 300,
-		description: 'Maximum time to wait for task completion in seconds (default: 5 minutes)',
-		displayOptions: {
-			show: {
-				resource: ['indexes'],
-				operation: ['createIndex', 'swapIndexes'],
-				waitForCompletion: [true],
-			},
-		},
-	},
+	...buildWaitForMeiliTaskFields({
+		resource: ['indexes'],
+		operations: ['createIndex', 'swapIndexes', 'deleteIndex'],
+	}),
 	{
 		displayName: 'Additional Fields',
 		noDataExpression: true,
@@ -893,9 +781,9 @@ export const indexesFields: INodeProperties[] = [
 				description: 'Number of indexes to skip',
 				type: 'number',
 				typeOptions: {
-					minValue: 1,
+					minValue: 0,
 				},
-				default: 1,
+				default: 0,
 				routing: {
 					request: {
 						qs: {

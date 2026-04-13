@@ -5,36 +5,18 @@ import {
 	type INodeProperties,
 	PreSendAction
 } from 'n8n-workflow';
+import { validateJSON } from './documentJson';
+import { buildWaitForMeiliTaskFields } from './waitPollFields';
 
-export function validateJSON(json: string | undefined | any): any {
-	if (json === undefined || json === null) {
-		return undefined;
-	}
+export { validateJSON } from './documentJson';
 
-	// If it's already an object/array, return it as-is (no need to parse)
-	if (typeof json === 'object' && json !== null) {
-		return json;
-	}
-
-	// If it's not a string, return undefined (can't parse non-strings)
-	if (typeof json !== 'string') {
-		return undefined;
-	}
-
-	// Trim whitespace
-	const trimmed = json.trim();
-	if (trimmed === '') {
-		return undefined;
-	}
-
-	// Try to parse as JSON
-	try {
-		return JSON.parse(trimmed);
-	} catch (exception) {
-		// Return undefined to let the caller handle the error with proper context
-		return undefined;
-	}
-}
+const DOCUMENTS_ASYNC_OPERATIONS = [
+	'addOrReplaceDocuments',
+	'addOrUpdateDocuments',
+	'deleteDocumentsBatch',
+	'deleteAllDocuments',
+	'deleteDocument',
+] as const;
 
 function parseAndSetBodyJsonArray(
 	parameterName: string,
@@ -294,6 +276,18 @@ export const documentsOperations: INodeProperties[] = [
 					},
 				},
 			},
+			{
+				name: 'Delete One Document',
+				value: 'deleteDocument',
+				action: 'Delete one document by UID',
+				routing: {
+					request: {
+						method: 'DELETE',
+						url: '={{"/indexes/" + $parameter["uid"] + "/documents/" + $parameter["documentId"]}}',
+						qs: {},
+					},
+				},
+			},
 		],
 	},
 ];
@@ -408,108 +402,10 @@ export const documentsFields: INodeProperties[] = [
 			},
 		},
 	},
-	{
-		displayName: 'Wait for Completion',
-		name: 'waitForCompletion',
-		type: 'boolean',
-		default: false,
-		description: 'Whether to wait for the task to complete before returning. If enabled, the node will poll the task status until it succeeds, fails, or is canceled.',
-		displayOptions: {
-			show: {
-				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
-			},
-		},
-	},
-	{
-		displayName: 'Use Exponential Backoff',
-		name: 'useExponentialBackoff',
-		type: 'boolean',
-		default: true,
-		description: 'If enabled, the polling interval will gradually increase to reduce API calls. If disabled, uses a fixed polling interval.',
-		displayOptions: {
-			show: {
-				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
-				waitForCompletion: [true],
-			},
-		},
-	},
-	{
-		displayName: 'Polling Interval (ms)',
-		name: 'pollingInterval',
-		type: 'number',
-		typeOptions: {
-			minValue: 100,
-			maxValue: 10000,
-		},
-		default: 500,
-		description: 'Fixed interval between polling requests in milliseconds (used when exponential backoff is disabled)',
-		displayOptions: {
-			show: {
-				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
-				waitForCompletion: [true],
-				useExponentialBackoff: [false],
-			},
-		},
-	},
-	{
-		displayName: 'Initial Polling Interval (ms)',
-		name: 'pollingInterval',
-		type: 'number',
-		typeOptions: {
-			minValue: 100,
-			maxValue: 10000,
-		},
-		default: 500,
-		description: 'Starting interval between polling requests in milliseconds. The interval increases by 1.5x every 5 attempts',
-		displayOptions: {
-			show: {
-				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
-				waitForCompletion: [true],
-				useExponentialBackoff: [true],
-			},
-		},
-	},
-	{
-		displayName: 'Max Polling Interval (ms)',
-		name: 'maxPollingInterval',
-		type: 'number',
-		typeOptions: {
-			minValue: 1000,
-			maxValue: 30000,
-		},
-		default: 5000,
-		description: 'Maximum interval between polling requests. Exponential backoff will not exceed this value',
-		displayOptions: {
-			show: {
-				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
-				waitForCompletion: [true],
-				useExponentialBackoff: [true],
-			},
-		},
-	},
-	{
-		displayName: 'Timeout (seconds)',
-		name: 'timeout',
-		type: 'number',
-		typeOptions: {
-			minValue: 1,
-			maxValue: 3600,
-		},
-		default: 300,
-		description: 'Maximum time to wait for task completion in seconds (default: 5 minutes)',
-		displayOptions: {
-			show: {
-				resource: ['documents'],
-				operation: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
-				waitForCompletion: [true],
-			},
-		},
-	},
+	...buildWaitForMeiliTaskFields({
+		resource: ['documents'],
+		operations: [...DOCUMENTS_ASYNC_OPERATIONS],
+	}),
 	{
 		displayName: 'Fields',
 		name: 'fields',
@@ -608,6 +504,48 @@ export const documentsAdditionalFields: INodeProperties[] = [
 					request: {
 						qs: {
 							filter: '={{$value}}',
+						},
+					},
+				},
+			},
+			{
+				displayName: 'Sort',
+				name: 'sort',
+				type: 'string',
+				description: 'Comma-separated sort fields (e.g. price:asc,release_date:desc)',
+				default: '',
+				routing: {
+					request: {
+						qs: {
+							sort: '={{$value.replaceAll(" ", "")}}',
+						},
+					},
+				},
+			},
+			{
+				displayName: 'IDs',
+				name: 'ids',
+				type: 'string',
+				description: 'Comma-separated document primary-key values to retrieve',
+				default: '',
+				routing: {
+					request: {
+						qs: {
+							ids: '={{$value.replaceAll(" ", "")}}',
+						},
+					},
+				},
+			},
+			{
+				displayName: 'Retrieve Vectors',
+				name: 'retrieveVectors',
+				type: 'boolean',
+				default: false,
+				description: 'When true, include vector embeddings in the response (if any)',
+				routing: {
+					request: {
+						qs: {
+							retrieveVectors: '={{$value}}',
 						},
 					},
 				},

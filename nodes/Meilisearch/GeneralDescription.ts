@@ -1,6 +1,5 @@
-import type {
-	INodeProperties,
-} from 'n8n-workflow';
+import type { INodeProperties } from 'n8n-workflow';
+import { buildWaitForMeiliTaskFields } from './waitPollFields';
 
 export const generalOperations: INodeProperties[] = [
 	{
@@ -80,107 +79,7 @@ export const generalOperations: INodeProperties[] = [
 	},
 ];
 
-export const generalFields: INodeProperties[] = [
-	{
-		displayName: 'Wait for Completion',
-		name: 'waitForCompletion',
-		type: 'boolean',
-		default: false,
-		description: 'Whether to wait for the task to complete before returning. If enabled, the node will poll the task status until it succeeds, fails, or is canceled.',
-		displayOptions: {
-			show: {
-				resource: ['general'],
-				operation: ['dumps'],
-			},
-		},
-	},
-	{
-		displayName: 'Use Exponential Backoff',
-		name: 'useExponentialBackoff',
-		type: 'boolean',
-		default: true,
-		description: 'If enabled, the polling interval will gradually increase to reduce API calls. If disabled, uses a fixed polling interval.',
-		displayOptions: {
-			show: {
-				resource: ['general'],
-				operation: ['dumps'],
-				waitForCompletion: [true],
-			},
-		},
-	},
-	{
-		displayName: 'Polling Interval (ms)',
-		name: 'pollingInterval',
-		type: 'number',
-		typeOptions: {
-			minValue: 100,
-			maxValue: 10000,
-		},
-		default: 500,
-		description: 'Fixed interval between polling requests in milliseconds (used when exponential backoff is disabled)',
-		displayOptions: {
-			show: {
-				resource: ['general'],
-				operation: ['dumps'],
-				waitForCompletion: [true],
-				useExponentialBackoff: [false],
-			},
-		},
-	},
-	{
-		displayName: 'Initial Polling Interval (ms)',
-		name: 'pollingInterval',
-		type: 'number',
-		typeOptions: {
-			minValue: 100,
-			maxValue: 10000,
-		},
-		default: 500,
-		description: 'Starting interval between polling requests in milliseconds. The interval increases by 1.5x every 5 attempts',
-		displayOptions: {
-			show: {
-				resource: ['general'],
-				operation: ['dumps'],
-				waitForCompletion: [true],
-				useExponentialBackoff: [true],
-			},
-		},
-	},
-	{
-		displayName: 'Max Polling Interval (ms)',
-		name: 'maxPollingInterval',
-		type: 'number',
-		typeOptions: {
-			minValue: 1000,
-			maxValue: 30000,
-		},
-		default: 5000,
-		description: 'Maximum interval between polling requests. Exponential backoff will not exceed this value',
-		displayOptions: {
-			show: {
-				resource: ['general'],
-				operation: ['dumps'],
-				waitForCompletion: [true],
-				useExponentialBackoff: [true],
-			},
-		},
-	},
-	{
-		displayName: 'Timeout (seconds)',
-		name: 'timeout',
-		type: 'number',
-		typeOptions: {
-			minValue: 1,
-			maxValue: 3600,
-		},
-		default: 300,
-		description: 'Maximum time to wait for task completion in seconds (default: 5 minutes)',
-		displayOptions: {
-			show: {
-				resource: ['general'],
-				operation: ['dumps'],
-				waitForCompletion: [true],
-			},
-		},
-	},
-];
+export const generalFields: INodeProperties[] = buildWaitForMeiliTaskFields({
+	resource: ['general'],
+	operations: ['dumps'],
+});

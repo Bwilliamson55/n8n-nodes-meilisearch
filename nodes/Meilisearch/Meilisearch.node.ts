@@ -26,7 +26,31 @@ import {
 } from './KeysDescription';
 import { documentsAdditionalFields, documentsFields, documentsOperations } from './DocumentsDescription';
 import { settingsFields, settingsOperations } from './SettingsDescription';
+import {
+	mergeTopLevelRoutingQs,
+	resolveRequestConfigBodyTemplates,
+	resolveRoutingTemplate,
+} from './routingTemplates';
 import { MeilisearchApi } from '../../credentials/MeilisearchApi.credentials';
+
+/** All property arrays scanned for top-level `routing.request.qs` (not additionalFields). */
+const MEILISEARCH_TOP_LEVEL_FIELD_GROUPS = [
+	generalFields,
+	getAllTasksFields,
+	deleteTasksFields,
+	cancelTasksFields,
+	getTaskFields,
+	waitForTaskFields,
+	indexesFields,
+	searchFields,
+	swapIndexesFields,
+	getKeysFields,
+	getKeyFields,
+	updateKeyFields,
+	createKeyFields,
+	documentsFields,
+	settingsFields,
+];
 
 // Helper function to wait for task completion
 async function waitForTaskCompletion(
@@ -101,8 +125,14 @@ async function waitForTaskCompletion(
 
 // Operations that return taskUid and support wait for completion
 const OPERATIONS_WITH_TASKUID = {
-	documents: ['addOrReplaceDocuments', 'addOrUpdateDocuments', 'deleteDocumentsBatch', 'deleteAllDocuments'],
-	indexes: ['createIndex', 'swapIndexes'],
+	documents: [
+		'addOrReplaceDocuments',
+		'addOrUpdateDocuments',
+		'deleteDocumentsBatch',
+		'deleteAllDocuments',
+		'deleteDocument',
+	],
+	indexes: ['createIndex', 'swapIndexes', 'deleteIndex'],
 	settings: ['updateSettings', 'resetSettings'],
 	keys: ['createKey', 'updateKey', 'deleteKey'],
 	general: ['dumps'],
@@ -304,6 +334,17 @@ export class Meilisearch implements INodeType {
 							const uid = this.getNodeParameter('uid', i) as string;
 							url = `/indexes/${uid}/search`;
 						}
+						// Handle "/indexes/" + $parameter["uid"] alone (get or delete index)
+						else if (
+							expr.includes('"/indexes/" + $parameter["uid"]') &&
+							!expr.includes('/documents') &&
+							!expr.includes('/stats') &&
+							!expr.includes('/settings') &&
+							!expr.includes('/search')
+						) {
+							const uid = this.getNodeParameter('uid', i) as string;
+							url = `/indexes/${uid}`;
+						}
 						// Generic fallback: try to extract and replace parameters
 						else {
 							// Extract all $parameter["name"] references
@@ -322,14 +363,15 @@ export class Meilisearch implements INodeType {
 					}
 				}
 
-				// Build query string and body - collect from additionalFields
-				// Query params and body are set via field routing configs
+				// Build query string and body - collect from top-level routing + additionalFields
 				const qs: Record<string, any> = {};
 				let body: Record<string, any> = {};
+				const getParam = (name: string) => this.getNodeParameter(name, i);
+
+				mergeTopLevelRoutingQs(MEILISEARCH_TOP_LEVEL_FIELD_GROUPS, resource, operation, getParam, qs);
+
 				const additionalFields = this.getNodeParameter('additionalFields', i, {}) as Record<string, any>;
-				
-				// Collect query parameters and body parameters from additionalFields
-				// We'll search through all field arrays to find routing configs
+
 				const allFields = [
 					...getAllTasksFields,
 					...deleteTasksFields,
@@ -347,74 +389,69 @@ export class Meilisearch implements INodeType {
 					...documentsAdditionalFields,
 					...settingsFields,
 				];
-				
+
 				for (const [key, value] of Object.entries(additionalFields)) {
 					if (value !== undefined && value !== null && value !== '') {
-						// Find the field definition
 						const fieldProp = allFields.find(
-							(p: any) => p.name === 'additionalFields' && 
+							(p: any) =>
+								p.name === 'additionalFields' &&
 								p.displayOptions?.show?.operation?.includes(operation) &&
-								p.displayOptions?.show?.resource?.includes(resource)
+								p.displayOptions?.show?.resource?.includes(resource),
 						);
-						
+
 						if (fieldProp?.options) {
 							const option = (fieldProp.options as any[]).find((opt: any) => opt.name === key);
-							
-							// Handle query string parameters
+
 							if (option?.routing?.request?.qs) {
-								// Extract the query parameter name from routing config
 								Object.keys(option.routing.request.qs).forEach((qsKey) => {
 									const qsValue = option.routing.request.qs[qsKey];
-									if (typeof qsValue === 'string') {
-										// Handle $value replacement
-										if (qsValue.includes('$value')) {
-											qs[qsKey] = qsValue.replace(/\$value/g, String(value));
-										} else if (qsValue.includes('replaceAll')) {
-											// Handle expressions like '={{$value.replaceAll(" ", "").split(",")}}'
-											if (qsValue.includes('.split(",")')) {
-												qs[qsKey] = String(value).replace(/\s/g, '').split(',');
-											} else {
-												qs[qsKey] = String(value).replace(/\s/g, '');
-											}
+									try {
+										if (typeof qsValue === 'string') {
+											qs[qsKey] = resolveRoutingTemplate(qsValue, value, getParam);
 										} else {
 											qs[qsKey] = value;
 										}
-									} else {
-										qs[qsKey] = value;
+									} catch (err) {
+										throw new NodeOperationError(
+											this.getNode(),
+											err instanceof Error ? err.message : String(err),
+										);
 									}
 								});
 							}
-							
-							// Handle body parameters
+
 							if (option?.routing?.request?.body) {
 								Object.keys(option.routing.request.body).forEach((bodyKey) => {
 									const bodyValue = option.routing.request.body[bodyKey];
-									if (typeof bodyValue === 'string') {
-										// Handle $value replacement
-										if (bodyValue.includes('$value')) {
-											body[bodyKey] = bodyValue.replace(/\$value/g, String(value));
-										} else if (bodyValue.includes('replaceAll')) {
-											// Handle expressions like '={{$value.replaceAll(" ", "").split(",")}}'
-											if (bodyValue.includes('.split(",")')) {
-												body[bodyKey] = String(value).replace(/\s/g, '').split(',');
-											} else {
-												body[bodyKey] = String(value).replace(/\s/g, '');
-											}
+									try {
+										if (typeof bodyValue === 'string') {
+											body[bodyKey] = resolveRoutingTemplate(bodyValue, value, getParam);
 										} else {
 											body[bodyKey] = value;
 										}
-									} else {
-										body[bodyKey] = value;
+									} catch (err) {
+										throw new NodeOperationError(
+											this.getNode(),
+											err instanceof Error ? err.message : String(err),
+										);
 									}
 								});
 							}
 						}
 					}
 				}
-				
-				// Merge with requestConfig.body if it exists
-				if (requestConfig.body) {
-					body = { ...requestConfig.body, ...body };
+
+				if (
+					requestConfig.body &&
+					typeof requestConfig.body === 'object' &&
+					requestConfig.body !== null &&
+					!Array.isArray(requestConfig.body)
+				) {
+					const resolvedRoutingBody = resolveRequestConfigBodyTemplates(
+						requestConfig.body as Record<string, unknown>,
+						getParam,
+					);
+					body = { ...resolvedRoutingBody, ...body };
 				}
 
 				// Execute preSend actions if they exist
