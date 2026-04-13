@@ -2,9 +2,19 @@
 
 ## Local n8n with this package
 
-1. Install the package under `~/.n8n/custom` (see repo root: `~/.n8n/custom/package.json` should depend on this repo via `file:…`, then `npm install` in that folder).
-2. **`N8N_CUSTOM_EXTENSIONS`** must point at that folder. This repo documents setting it in **`~/.bashrc`**; open a new shell or `source ~/.bashrc`.
-3. Start n8n: **`./scripts/start-n8n-local.sh`** from the repo, or **`npx n8n`** after the env var is set.
+n8n loads community nodes from **`~/.n8n/nodes`** ([manual install](https://docs.n8n.io/integrations/community-nodes/installation/manual-install/)). Prefer installing this repo there so you are not stuck on an older **npm** release:
+
+```bash
+mkdir -p ~/.n8n/nodes
+cd ~/.n8n/nodes
+npm install file:/absolute/path/to/n8n-nodes-meilisearch
+```
+
+Restart n8n after `npm run build` in this repo (re-run `npm install` in `~/.n8n/nodes` if needed).
+
+**Also check:** if `~/.n8n/nodes/package.json` pins a version like `"n8n-nodes-meilisearch": "0.1.5"`, that copy wins—replace it with a `file:` dependency for local development.
+
+Optional: **`./scripts/start-n8n-local.sh`** starts `npx n8n` (you can set **`N8N_CUSTOM_EXTENSIONS`** in **`~/.bashrc`** if you use a second folder; it does not replace `~/.n8n/nodes`).
 
 ## Import
 

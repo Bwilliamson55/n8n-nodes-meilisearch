@@ -307,6 +307,33 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 3. Build the project: `npm run build`
 4. Run linting: `npm run lint`
 
+### Local development with a running n8n instance
+
+Self-hosted n8n loads **community nodes from `~/.n8n/nodes`** (see [Manual installation](https://docs.n8n.io/integrations/community-nodes/installation/manual-install/)). That path takes precedence over other setups—if `~/.n8n/nodes/package.json` depends on a **published** version from npm, the editor will use that build even if you also have a `file:` dependency under `~/.n8n/custom` or **`N8N_CUSTOM_EXTENSIONS`**.
+
+**Option A — `file:` install into `~/.n8n/nodes` (recommended for `npx n8n`)**
+
+```bash
+mkdir -p ~/.n8n/nodes
+cd ~/.n8n/nodes
+# If package.json does not exist yet: npm init -y
+npm install file:/absolute/path/to/n8n-nodes-meilisearch
+```
+
+Then restart n8n. After `npm run build` in this repo, run `npm install` again in `~/.n8n/nodes` (or `npm update n8n-nodes-meilisearch`) to refresh the symlinked package.
+
+**Option B — `npm link` (same idea as [n8n-nodes-magento-rest](https://github.com/Bwilliamson55/n8n-nodes-magento-rest))**
+
+Useful when n8n is installed as a **global or local Node project** (not only `npx`):
+
+1. In this repo: `npm run build` then `npm link`
+2. `cd` to that n8n installation directory and run `npm link n8n-nodes-meilisearch`
+3. Restart n8n
+
+**Option C — `N8N_CUSTOM_EXTENSIONS`**
+
+Some setups load extra packages from a folder configured by **`N8N_CUSTOM_EXTENSIONS`**. That is separate from `~/.n8n/nodes`; if the node does not appear or an old version loads, check both locations and which dependency versions they pin.
+
 ### Reporting Issues
 
 If you encounter any issues or have feature requests, please open an issue on the [GitHub repository](https://github.com/Bwilliamson55/n8n-nodes-meilisearch/issues).
