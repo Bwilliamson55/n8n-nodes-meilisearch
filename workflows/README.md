@@ -1,5 +1,11 @@
 # Meilisearch node smoke workflow
 
+## Local n8n with this package
+
+1. Install the package under `~/.n8n/custom` (see repo root: `~/.n8n/custom/package.json` should depend on this repo via `file:…`, then `npm install` in that folder).
+2. **`N8N_CUSTOM_EXTENSIONS`** must point at that folder. This repo documents setting it in **`~/.bashrc`**; open a new shell or `source ~/.bashrc`.
+3. Start n8n: **`./scripts/start-n8n-local.sh`** from the repo, or **`npx n8n`** after the env var is set.
+
 ## Import
 
 1. In n8n: **Workflows → Import from File** → select [`meilisearch-node-smoke.json`](./meilisearch-node-smoke.json).
