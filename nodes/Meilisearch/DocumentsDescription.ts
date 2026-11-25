@@ -173,7 +173,15 @@ function parseAndSetBodyJsonArray(
 			}
 		}
 
-		requestOptions.body = body;
+		// Meilisearch requires an explicit JSON Content-Type on document routes and
+		// answers 415 missing_content_type without it (enforced since v0.23). The body
+		// is serialized here so the request always carries a JSON payload string rather
+		// than a bare array/object, which previously reached httpRequest without a header.
+		requestOptions.body = JSON.stringify(body);
+		requestOptions.headers = {
+			...requestOptions.headers,
+			'Content-Type': 'application/json',
+		};
 		return requestOptions;
 	}
 }
