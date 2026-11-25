@@ -504,8 +504,19 @@ export class Meilisearch implements INodeType {
 						requestOptions = await preSendAction.call(singleExecuteContext, requestOptions);
 					}
 					
-					// Ensure Content-Type header is set if body exists (preSend might have set it)
-					if (requestOptions.body && typeof requestOptions.body === 'string') {
+				}
+
+				// Ensure a Content-Type header is present whenever a body is sent.
+				// Meilisearch rejects payload routes without one (415 missing_content_type,
+				// enforced since v0.23), while preSend actions may legitimately leave the
+				// body as an array or a plain object instead of a JSON string. Only supply
+				// the default when the operation has not already chosen a Content-Type, so
+				// explicit overrides (for example csv or ndjson) are preserved.
+				if (requestOptions.body !== undefined && requestOptions.body !== null) {
+					const hasContentTypeHeader = Object.keys(requestOptions.headers ?? {}).some(
+						(headerName) => headerName.toLowerCase() === 'content-type',
+					);
+					if (!hasContentTypeHeader) {
 						requestOptions.headers = {
 							...requestOptions.headers,
 							'Content-Type': 'application/json',

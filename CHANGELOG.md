@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1
+
+### Fixed
+
+- **Document writes returned `415 missing_content_type`.** `addOrReplaceDocuments`, `addOrUpdateDocuments` and `deleteDocumentsBatch` sent their payload without a `Content-Type` header, so every write against Meilisearch v0.23 or newer failed with:
+  `A Content-Type header is missing. Accepted values for the Content-Type header are: application/json, application/x-ndjson, text/csv`.
+  - `parseAndSetBodyJsonArray()` set `requestOptions.body` to a JSON **array**, and the follow-up guard only added the header when the body was a **string**, so the header was never set. The same helper now serializes the payload with `JSON.stringify()` and sets `Content-Type: application/json`.
+  - `requestDefaults.headers` never applied to real requests, because the custom `execute()` builds its own options and calls `helpers.httpRequest()` directly instead of going through the declarative routing engine. The Content-Type guard therefore now runs for **every** request that carries a body, outside the `preSend`-only branch, and checks header names case-insensitively so an explicit `csv`/`ndjson` override is still preserved.
+- Workflows that previously failed on every document write now reach Meilisearch; note that an empty upstream `data: []` produces a valid no-op task rather than an error.
+
 ## 0.2.0
 
 ### Fixed
